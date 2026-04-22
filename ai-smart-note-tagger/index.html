@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Smart Note Tagger</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: 'Inter', system-ui, sans-serif; }
+
+    .tag-chip {
+      display: inline-flex; align-items: center;
+      padding: 2px 10px; border-radius: 9999px;
+      font-size: 0.75rem; font-weight: 500;
+      background: #e0e7ff; color: #3730a3;
+      cursor: default;
+    }
+    .tag-chip.clickable { cursor: pointer; transition: background 0.15s; }
+    .tag-chip.clickable:hover { background: #c7d2fe; }
+    .tag-chip.active { background: #6366f1; color: #fff; }
+
+    .category-badge {
+      display: inline-flex; align-items: center;
+      padding: 2px 10px; border-radius: 9999px;
+      font-size: 0.7rem; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .cat-work     { background: #dbeafe; color: #1e40af; }
+    .cat-personal { background: #dcfce7; color: #166534; }
+    .cat-ideas    { background: #fef9c3; color: #854d0e; }
+    .cat-research { background: #f3e8ff; color: #6b21a8; }
+    .cat-other    { background: #f1f5f9; color: #475569; }
+
+    .spinner {
+      display: inline-block; width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,0.4);
+      border-top-color: #fff; border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle; margin-right: 6px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .toast {
+      position: fixed; bottom: 1.5rem; right: 1.5rem;
+      padding: 0.6rem 1rem; border-radius: 0.5rem;
+      color: #fff; font-size: 0.875rem; font-weight: 500;
+      z-index: 9999; max-width: 340px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      animation: slideIn 0.2s ease;
+    }
+    @keyframes slideIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .toast-error   { background: #ef4444; }
+    .toast-success { background: #22c55e; }
+    .toast-info    { background: #6366f1; }
+
+    .note-content-full  { display: none; }
+    .note-content-short { display: block; }
+    .expanded .note-content-full  { display: block; }
+    .expanded .note-content-short { display: none; }
+
+    textarea:focus, input:focus { outline: none; }
+
+    @media (min-width: 768px) {
+      .app-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; align-items: start; }
+    }
+  </style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+  <!-- Settings Modal -->
+  <div id="settingsModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-semibold text-slate-800">API Key Settings</h2>
+        <button id="closeModal" class="text-slate-400 hover:text-slate-600 text-xl leading-none">&times;</button>
+      </div>
+      <p class="text-sm text-slate-500 mb-3">
+        Your key is stored only in your browser's localStorage — never sent anywhere except directly to Anthropic.
+      </p>
+      <input
+        id="apiKeyInput"
+        type="password"
+        placeholder="sk-ant-api03-..."
+        class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 mb-3"
+      />
+      <div id="keyStatus" class="text-xs text-slate-400 mb-3 hidden">
+        <span class="text-green-600 font-medium">✓ API key saved</span>
+      </div>
+      <button id="saveKeyBtn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 rounded-lg text-sm transition-colors">
+        Save Key
+      </button>
+    </div>
+  </div>
+
+  <!-- Header -->
+  <header class="bg-white border-b border-slate-100 sticky top-0 z-40">
+    <div class="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <span class="text-2xl">🏷️</span>
+        <span class="font-bold text-slate-800 text-lg">AI Smart Note Tagger</span>
+      </div>
+      <button id="openSettings" title="Settings" class="text-slate-400 hover:text-indigo-600 transition-colors p-1 rounded-lg hover:bg-indigo-50">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="max-w-4xl mx-auto px-4 py-6">
+    <div class="app-grid">
+
+      <!-- Left: Input Panel -->
+      <div>
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 mb-4">
+          <h2 class="font-semibold text-slate-700 mb-3 text-sm uppercase tracking-wide">New Note</h2>
+          <textarea
+            id="noteInput"
+            rows="7"
+            maxlength="10000"
+            placeholder="Paste or type your note here..."
+            class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 resize-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 transition-shadow"
+          ></textarea>
+          <div class="flex justify-between items-center mt-1 mb-3">
+            <span id="charCount" class="text-xs text-slate-400">0 / 10,000</span>
+          </div>
+          <button id="tagBtn" class="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white font-semibold py-2.5 rounded-xl text-sm transition-colors">
+            ✨ Tag This Note
+          </button>
+        </div>
+
+        <!-- Metadata Preview (hidden until API responds) -->
+        <div id="previewPanel" class="bg-white rounded-2xl shadow-sm border border-indigo-100 p-5 hidden">
+          <h2 class="font-semibold text-slate-700 mb-3 text-sm uppercase tracking-wide">AI Analysis</h2>
+
+          <div class="mb-3">
+            <span class="text-xs text-slate-400 uppercase tracking-wide font-medium">Summary</span>
+            <p id="previewSummary" class="text-sm text-slate-700 mt-1 leading-relaxed"></p>
+          </div>
+
+          <div class="mb-3">
+            <span class="text-xs text-slate-400 uppercase tracking-wide font-medium">Category</span>
+            <div class="mt-1">
+              <span id="previewCategory" class="category-badge"></span>
+            </div>
+          </div>
+
+          <div class="mb-4">
+            <span class="text-xs text-slate-400 uppercase tracking-wide font-medium">Tags</span>
+            <div id="previewTags" class="mt-1 flex flex-wrap gap-1.5"></div>
+          </div>
+
+          <div class="flex gap-2">
+            <button id="saveNoteBtn" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 rounded-xl text-sm transition-colors">
+              💾 Save Note
+            </button>
+            <button id="discardBtn" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold py-2 rounded-xl text-sm transition-colors">
+              Discard
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Notes Feed -->
+      <div>
+        <!-- Search + Filter -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 mb-4">
+          <input
+            id="searchInput"
+            type="text"
+            placeholder="Search notes..."
+            class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 transition-shadow mb-3"
+          />
+          <div id="tagFilters" class="flex flex-wrap gap-1.5"></div>
+        </div>
+
+        <!-- Cards -->
+        <div id="notesFeed"></div>
+      </div>
+
+    </div>
+  </main>
+
+  <script>
+    // ─── State ───────────────────────────────────────────────────────────────
+    const state = {
+      notes: [],
+      apiKey: '',
+      activeTag: null,
+      searchQuery: '',
+      pendingMeta: null
+    };
+
+    // ─── Init ─────────────────────────────────────────────────────────────────
+    function init() {
+      state.notes = JSON.parse(localStorage.getItem('antNotes') || '[]');
+      state.apiKey = localStorage.getItem('antApiKey') || '';
+      renderFeed();
+      renderTagFilters();
+      bindEvents();
+    }
+
+    // ─── Persistence ──────────────────────────────────────────────────────────
+    function persistNotes() {
+      localStorage.setItem('antNotes', JSON.stringify(state.notes));
+    }
+
+    // ─── API Key ──────────────────────────────────────────────────────────────
+    function saveApiKey() {
+      const key = document.getElementById('apiKeyInput').value.trim();
+      if (!key) { showToast('Please enter an API key.', 'error'); return; }
+      state.apiKey = key;
+      localStorage.setItem('antApiKey', key);
+      document.getElementById('keyStatus').classList.remove('hidden');
+      showToast('API key saved!', 'success');
+      setTimeout(() => closeModal(), 800);
+    }
+
+    function openModal() {
+      document.getElementById('apiKeyInput').value = state.apiKey;
+      const statusEl = document.getElementById('keyStatus');
+      state.apiKey ? statusEl.classList.remove('hidden') : statusEl.classList.add('hidden');
+      document.getElementById('settingsModal').classList.remove('hidden');
+    }
+
+    function closeModal() {
+      document.getElementById('settingsModal').classList.add('hidden');
+    }
+
+    // ─── Tag Note (API Call) ──────────────────────────────────────────────────
+    async function tagNote() {
+      const noteContent = document.getElementById('noteInput').value.trim();
+
+      if (!state.apiKey) { showToast('Please set your Anthropic API key in Settings first.', 'error'); return; }
+      if (!noteContent)  { showToast('Please enter a note before tagging.', 'error'); return; }
+      if (noteContent.length > 10000) { showToast('Note is too long. Keep it under 10,000 characters.', 'error'); return; }
+
+      setTagBtnLoading(true);
+      document.getElementById('previewPanel').classList.add('hidden');
+
+      try {
+        const response = await fetch('/api/tag', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ apiKey: state.apiKey, noteContent })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          showToast(data.error || 'Something went wrong. Try again.', 'error');
+          return;
+        }
+
+        state.pendingMeta = { ...data, noteContent };
+        showPreview(data);
+      } catch {
+        showToast('Cannot connect to local server. Is `npm start` running?', 'error');
+      } finally {
+        setTagBtnLoading(false);
+      }
+    }
+
+    function setTagBtnLoading(loading) {
+      const btn = document.getElementById('tagBtn');
+      btn.disabled = loading;
+      btn.innerHTML = loading
+        ? '<span class="spinner"></span>Analyzing...'
+        : '✨ Tag This Note';
+    }
+
+    // ─── Preview Panel ────────────────────────────────────────────────────────
+    function showPreview({ summary, category, tags }) {
+      document.getElementById('previewSummary').textContent = summary;
+
+      const catEl = document.getElementById('previewCategory');
+      catEl.textContent = category;
+      catEl.className = `category-badge ${categoryClass(category)}`;
+
+      const tagsEl = document.getElementById('previewTags');
+      tagsEl.innerHTML = tags.map(t => `<span class="tag-chip">#${t}</span>`).join('');
+
+      document.getElementById('previewPanel').classList.remove('hidden');
+      document.getElementById('previewPanel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function hidePreview() {
+      state.pendingMeta = null;
+      document.getElementById('previewPanel').classList.add('hidden');
+    }
+
+    // ─── Save Note ────────────────────────────────────────────────────────────
+    function saveNote() {
+      if (!state.pendingMeta) return;
+      const { noteContent, summary, category, tags } = state.pendingMeta;
+      const note = {
+        id: Date.now().toString(),
+        content: noteContent,
+        summary,
+        category,
+        tags,
+        createdAt: new Date().toISOString()
+      };
+      state.notes.unshift(note);
+      persistNotes();
+      hidePreview();
+      document.getElementById('noteInput').value = '';
+      document.getElementById('charCount').textContent = '0 / 10,000';
+      renderFeed();
+      renderTagFilters();
+      showToast('Note saved!', 'success');
+    }
+
+    // ─── Delete Note ──────────────────────────────────────────────────────────
+    function deleteNote(id) {
+      state.notes = state.notes.filter(n => n.id !== id);
+      persistNotes();
+      renderFeed();
+      renderTagFilters();
+    }
+
+    // ─── Render Feed ──────────────────────────────────────────────────────────
+    function renderFeed() {
+      const feed = document.getElementById('notesFeed');
+      let filtered = state.notes;
+
+      if (state.activeTag) {
+        filtered = filtered.filter(n => n.tags.includes(state.activeTag));
+      }
+      if (state.searchQuery) {
+        const q = state.searchQuery.toLowerCase();
+        filtered = filtered.filter(n =>
+          n.content.toLowerCase().includes(q) ||
+          n.summary.toLowerCase().includes(q) ||
+          n.tags.some(t => t.includes(q))
+        );
+      }
+
+      if (filtered.length === 0) {
+        feed.innerHTML = `
+          <div class="bg-white rounded-2xl border border-slate-100 p-8 text-center">
+            <span class="text-4xl block mb-3">${state.notes.length === 0 ? '📝' : '🔍'}</span>
+            <p class="text-slate-400 text-sm">
+              ${state.notes.length === 0
+                ? 'No notes yet. Start by tagging one above!'
+                : 'No notes match your current filter.'}
+            </p>
+          </div>`;
+        return;
+      }
+
+      feed.innerHTML = filtered.map(note => {
+        const short = note.content.length > 160
+          ? note.content.slice(0, 160) + '…'
+          : note.content;
+        const hasMore = note.content.length > 160;
+
+        return `
+          <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 mb-3 note-card" data-id="${note.id}">
+            <div class="flex items-start justify-between gap-2 mb-2">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="category-badge ${categoryClass(note.category)}">${note.category}</span>
+                <span class="text-xs text-slate-400">${timeAgo(note.createdAt)}</span>
+              </div>
+              <button class="delete-btn text-slate-300 hover:text-red-400 transition-colors shrink-0" data-id="${note.id}" title="Delete note">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+            </div>
+
+            <p class="text-sm font-semibold text-slate-800 mb-2 leading-snug">${escHtml(note.summary)}</p>
+
+            <div class="note-text-wrap text-sm text-slate-500 leading-relaxed mb-2">
+              <span class="note-content-short">${escHtml(short)}</span>
+              <span class="note-content-full">${escHtml(note.content)}</span>
+            </div>
+
+            ${hasMore ? `<button class="toggle-btn text-xs text-indigo-500 hover:text-indigo-700 font-medium mb-2" data-id="${note.id}">Show more</button>` : ''}
+
+            <div class="flex flex-wrap gap-1.5 mt-1">
+              ${note.tags.map(t => `<span class="tag-chip clickable filter-tag" data-tag="${t}">#${t}</span>`).join('')}
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    // ─── Tag Filter Bar ───────────────────────────────────────────────────────
+    function renderTagFilters() {
+      const el = document.getElementById('tagFilters');
+      const tagCounts = {};
+      state.notes.forEach(n => n.tags.forEach(t => { tagCounts[t] = (tagCounts[t] || 0) + 1; }));
+      const tags = Object.keys(tagCounts).sort();
+
+      if (tags.length === 0) { el.innerHTML = '<span class="text-xs text-slate-400">No tags yet</span>'; return; }
+
+      el.innerHTML = tags.map(t => `
+        <span class="tag-chip clickable filter-tag ${state.activeTag === t ? 'active' : ''}" data-tag="${t}">
+          #${t} <span class="ml-1 opacity-60">${tagCounts[t]}</span>
+        </span>`).join('');
+
+      if (state.activeTag) {
+        el.innerHTML += `<button id="clearFilter" class="text-xs text-indigo-500 hover:text-indigo-700 font-medium ml-1">✕ Clear</button>`;
+        document.getElementById('clearFilter').addEventListener('click', () => {
+          state.activeTag = null;
+          renderFeed();
+          renderTagFilters();
+        });
+      }
+    }
+
+    // ─── Utilities ────────────────────────────────────────────────────────────
+    function categoryClass(cat) {
+      return { Work: 'cat-work', Personal: 'cat-personal', Ideas: 'cat-ideas', Research: 'cat-research', Other: 'cat-other' }[cat] || 'cat-other';
+    }
+
+    function timeAgo(iso) {
+      const diff = Date.now() - new Date(iso).getTime();
+      const s = Math.floor(diff / 1000);
+      if (s < 60)   return 'just now';
+      if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+      if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+      return `${Math.floor(s / 86400)}d ago`;
+    }
+
+    function escHtml(str) {
+      return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    let toastTimer;
+    function showToast(msg, type = 'info') {
+      clearTimeout(toastTimer);
+      let el = document.getElementById('toast');
+      if (!el) { el = document.createElement('div'); el.id = 'toast'; document.body.appendChild(el); }
+      el.className = `toast toast-${type}`;
+      el.textContent = msg;
+      toastTimer = setTimeout(() => { if (el) el.remove(); }, 4000);
+    }
+
+    // ─── Event Binding ────────────────────────────────────────────────────────
+    function bindEvents() {
+      document.getElementById('openSettings').addEventListener('click', openModal);
+      document.getElementById('closeModal').addEventListener('click', closeModal);
+      document.getElementById('settingsModal').addEventListener('click', e => {
+        if (e.target === document.getElementById('settingsModal')) closeModal();
+      });
+      document.getElementById('saveKeyBtn').addEventListener('click', saveApiKey);
+      document.getElementById('apiKeyInput').addEventListener('keydown', e => { if (e.key === 'Enter') saveApiKey(); });
+
+      document.getElementById('tagBtn').addEventListener('click', tagNote);
+      document.getElementById('saveNoteBtn').addEventListener('click', saveNote);
+      document.getElementById('discardBtn').addEventListener('click', hidePreview);
+
+      document.getElementById('noteInput').addEventListener('input', e => {
+        document.getElementById('charCount').textContent = `${e.target.value.length} / 10,000`;
+      });
+
+      let searchDebounce;
+      document.getElementById('searchInput').addEventListener('input', e => {
+        clearTimeout(searchDebounce);
+        searchDebounce = setTimeout(() => {
+          state.searchQuery = e.target.value.trim().toLowerCase();
+          renderFeed();
+        }, 300);
+      });
+
+      // Event delegation for feed (delete, expand, tag filter)
+      document.getElementById('notesFeed').addEventListener('click', e => {
+        const deleteBtn = e.target.closest('.delete-btn');
+        if (deleteBtn) { deleteNote(deleteBtn.dataset.id); return; }
+
+        const toggleBtn = e.target.closest('.toggle-btn');
+        if (toggleBtn) {
+          const card = document.querySelector(`.note-card[data-id="${toggleBtn.dataset.id}"]`);
+          const wrap = card.querySelector('.note-text-wrap');
+          const expanded = wrap.classList.toggle('expanded');
+          toggleBtn.textContent = expanded ? 'Show less' : 'Show more';
+          return;
+        }
+
+        const tagChip = e.target.closest('.filter-tag');
+        if (tagChip) {
+          const tag = tagChip.dataset.tag;
+          state.activeTag = state.activeTag === tag ? null : tag;
+          renderFeed();
+          renderTagFilters();
+        }
+      });
+
+      // Tag filter bar delegation
+      document.getElementById('tagFilters').addEventListener('click', e => {
+        const tagChip = e.target.closest('.filter-tag');
+        if (tagChip) {
+          const tag = tagChip.dataset.tag;
+          state.activeTag = state.activeTag === tag ? null : tag;
+          renderFeed();
+          renderTagFilters();
+        }
+      });
+    }
+
+    init();
+  </script>
+</body>
+</html>
