@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Decision Wheel Spinner 🎲</title>
+  <style>
+    /* ---------- Reset & base ---------- */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg-1: #0f0c29;
+      --bg-2: #302b63;
+      --bg-3: #24243e;
+      --accent: #ffd166;
+      --accent-2: #ef476f;
+      --text: #f4f4f8;
+      --muted: #b8b8d1;
+      --card: rgba(255, 255, 255, 0.08);
+      --card-border: rgba(255, 255, 255, 0.18);
+    }
+    html, body {
+      min-height: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: var(--text);
+      background: linear-gradient(135deg, var(--bg-1), var(--bg-2), var(--bg-3));
+      background-size: 300% 300%;
+      animation: bg-pan 20s ease infinite;
+    }
+    @keyframes bg-pan {
+      0%, 100% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+    }
+
+    /* ---------- Layout ---------- */
+    .app {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 24px 20px 60px;
+    }
+    header {
+      text-align: center;
+      margin-bottom: 22px;
+    }
+    header h1 {
+      font-size: clamp(1.8rem, 4vw, 2.6rem);
+      letter-spacing: -0.02em;
+      background: linear-gradient(90deg, var(--accent), var(--accent-2));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+    header p {
+      color: var(--muted);
+      margin-top: 6px;
+      font-size: 0.95rem;
+    }
+
+    /* ---------- Category tabs ---------- */
+    .tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+      margin-bottom: 24px;
+      padding: 0 4px;
+    }
+    .tab {
+      padding: 10px 16px;
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: 999px;
+      color: var(--muted);
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+    .tab:hover {
+      color: var(--text);
+      transform: translateY(-1px);
+    }
+    .tab.active {
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      color: #1a1a2e;
+      border-color: transparent;
+      box-shadow: 0 4px 14px rgba(239, 71, 111, 0.35);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 24px;
+    }
+    @media (min-width: 860px) {
+      .grid {
+        grid-template-columns: 1.1fr 1fr;
+        align-items: start;
+      }
+    }
+
+    /* ---------- Category title strip ---------- */
+    .category-title {
+      text-align: center;
+      margin-bottom: 14px;
+      font-size: 1.4rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+    .category-title .emoji {
+      font-size: 1.6rem;
+      margin-right: 6px;
+    }
+
+    /* ---------- Wheel ---------- */
+    .wheel-card {
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      padding: 24px;
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 18px;
+    }
+    .wheel-wrap {
+      position: relative;
+      width: 100%;
+      max-width: 420px;
+      aspect-ratio: 1 / 1;
+    }
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      filter: drop-shadow(0 10px 30px rgba(0,0,0,0.5));
+    }
+    .pointer {
+      position: absolute;
+      top: -6px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 0;
+      height: 0;
+      border-left: 16px solid transparent;
+      border-right: 16px solid transparent;
+      border-top: 28px solid var(--accent);
+      filter: drop-shadow(0 4px 6px rgba(0,0,0,0.4));
+      z-index: 3;
+    }
+    .hub {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 56px; height: 56px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 30% 30%, #fff, #ddd 60%, #888);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4), inset 0 -4px 8px rgba(0,0,0,0.2);
+      z-index: 2;
+    }
+
+    .spin-btn {
+      padding: 14px 36px;
+      font-size: 1.1rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: #1a1a2e;
+      background: linear-gradient(135deg, var(--accent), #ffb347);
+      border: none;
+      border-radius: 999px;
+      cursor: pointer;
+      box-shadow: 0 6px 20px rgba(255, 209, 102, 0.35);
+      transition: transform 0.15s ease, box-shadow 0.2s ease;
+    }
+    .spin-btn:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 28px rgba(255, 209, 102, 0.5);
+    }
+    .spin-btn:active:not(:disabled) { transform: translateY(0); }
+    .spin-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* ---------- Controls panel ---------- */
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      padding: 22px;
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+    }
+    .panel h2 {
+      font-size: 1.05rem;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .add-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+    input[type="text"] {
+      flex: 1;
+      padding: 12px 14px;
+      background: rgba(0,0,0,0.25);
+      color: var(--text);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      font-size: 0.95rem;
+      outline: none;
+      transition: border-color 0.15s;
+      min-width: 0;
+    }
+    input[type="text"]:focus { border-color: var(--accent); }
+    .btn {
+      padding: 12px 18px;
+      background: var(--accent-2);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+      white-space: nowrap;
+    }
+    .btn:hover { background: #d63b5e; }
+    .btn:active { transform: scale(0.97); }
+    .btn-ghost {
+      background: transparent;
+      border: 1px solid var(--card-border);
+      color: var(--muted);
+    }
+    .btn-ghost:hover { background: rgba(255,255,255,0.06); color: var(--text); }
+
+    .options-list {
+      list-style: none;
+      max-height: 280px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+    .options-list li {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      margin-bottom: 6px;
+      background: rgba(0,0,0,0.2);
+      border-radius: 10px;
+      animation: slide-in 0.25s ease;
+    }
+    @keyframes slide-in {
+      from { opacity: 0; transform: translateX(-10px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+    .swatch {
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .opt-label { flex: 1; font-size: 0.95rem; word-break: break-word; }
+    .remove {
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-size: 1.2rem;
+      cursor: pointer;
+      padding: 0 4px;
+      line-height: 1;
+      transition: color 0.15s;
+    }
+    .remove:hover { color: var(--accent-2); }
+
+    .panel-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 14px;
+      flex-wrap: wrap;
+    }
+
+    /* ---------- History ---------- */
+    .history { margin-top: 24px; }
+    .history-list {
+      list-style: none;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    .history-list li {
+      padding: 8px 12px;
+      margin-bottom: 4px;
+      background: rgba(0,0,0,0.2);
+      border-radius: 8px;
+      font-size: 0.9rem;
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .history-list .winner { color: var(--accent); font-weight: 600; word-break: break-word; }
+    .history-list .meta { color: var(--muted); font-size: 0.8rem; flex-shrink: 0; }
+    .history-empty { color: var(--muted); font-size: 0.9rem; text-align: center; padding: 16px; }
+
+    /* ---------- Result modal ---------- */
+    .modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      animation: fade-in 0.2s ease;
+    }
+    .modal.show { display: flex; }
+    @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+    .modal-card {
+      background: linear-gradient(135deg, #2d2862, #4b3f8f);
+      border: 1px solid var(--card-border);
+      border-radius: 24px;
+      padding: 36px 40px;
+      text-align: center;
+      max-width: 90%;
+      animation: pop-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    @keyframes pop-in {
+      0% { transform: scale(0.6); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .modal-card .label { color: var(--muted); font-size: 0.9rem; letter-spacing: 0.1em; text-transform: uppercase; }
+    .modal-card .winner-text {
+      font-size: clamp(1.8rem, 5vw, 2.6rem);
+      font-weight: 800;
+      margin: 12px 0 24px;
+      background: linear-gradient(90deg, var(--accent), var(--accent-2));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      word-break: break-word;
+    }
+
+    .confetti {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      overflow: hidden;
+      z-index: 99;
+    }
+
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>🎲 Decision Wheel Spinner</h1>
+      <p>Pick a category, spin the wheel, let fate decide.</p>
+    </header>
+
+    <!-- Category tabs -->
+    <div class="tabs" id="tabs"></div>
+
+    <!-- Active category title -->
+    <div class="category-title" id="categoryTitle"></div>
+
+    <div class="grid">
+      <!-- Left: Wheel -->
+      <div class="wheel-card">
+        <div class="wheel-wrap">
+          <div class="pointer"></div>
+          <canvas id="wheel" width="600" height="600"></canvas>
+          <div class="hub"></div>
+        </div>
+        <button class="spin-btn" id="spinBtn">Spin</button>
+      </div>
+
+      <!-- Right: Controls -->
+      <div>
+        <div class="panel">
+          <h2>✏️ Customize Options</h2>
+          <div class="add-row">
+            <input type="text" id="optionInput" placeholder="Add an option…" maxlength="40" />
+            <button class="btn" id="addBtn">Add</button>
+          </div>
+          <ul class="options-list" id="optionsList"></ul>
+          <div class="panel-actions">
+            <button class="btn btn-ghost" id="shuffleBtn">🔀 Shuffle</button>
+            <button class="btn btn-ghost" id="resetBtn">↩️ Reset to default</button>
+            <button class="btn btn-ghost" id="clearBtn">🗑 Clear all</button>
+          </div>
+        </div>
+
+        <div class="panel history">
+          <h2>📜 Spin History</h2>
+          <ul class="history-list" id="historyList"></ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Result modal -->
+  <div class="modal" id="modal">
+    <div class="modal-card">
+      <div class="label" id="modalLabel">The winner is</div>
+      <div class="winner-text" id="winnerText">—</div>
+      <button class="btn" id="closeModal">Spin again</button>
+    </div>
+  </div>
+
+  <div class="confetti" id="confetti"></div>
+
+  <script>
+    /* =========================================================
+       Decision Wheel Spinner — multi-category edition
+       ========================================================= */
+
+    // Vibrant slice palette
+    const COLORS = [
+      "#ef476f", "#ffd166", "#06d6a0", "#118ab2", "#8338ec",
+      "#fb5607", "#ff006e", "#3a86ff", "#02c39a", "#f15bb5"
+    ];
+
+    // ---- Categories: each has an id, label, emoji, and default options ----
+    const CATEGORIES = [
+      {
+        id: "eat",
+        emoji: "🍕",
+        label: "What should I eat?",
+        prompt: "Tonight's dinner is…",
+        defaults: ["Pizza", "Sushi", "Burger", "Tacos", "Salad", "Pasta", "Ramen", "Indian"]
+      },
+      {
+        id: "watch",
+        emoji: "🎬",
+        label: "What should I watch?",
+        prompt: "Tonight's pick is…",
+        defaults: ["Comedy", "Thriller", "Documentary", "Anime", "Sci-Fi", "Rom-Com", "Action", "Reality TV"]
+      },
+      {
+        id: "do",
+        emoji: "🎯",
+        label: "What should I do?",
+        prompt: "Your activity is…",
+        defaults: ["Read 📚", "Walk 🚶", "Game 🎮", "Nap 😴", "Cook 🍳", "Workout 💪", "Call a friend 📞", "Tidy up 🧹"]
+      },
+      {
+        id: "drink",
+        emoji: "🍹",
+        label: "What should I drink?",
+        prompt: "Your drink is…",
+        defaults: ["Coffee", "Tea", "Beer", "Wine", "Cocktail", "Smoothie", "Water", "Soda"]
+      },
+      {
+        id: "yesno",
+        emoji: "🎱",
+        label: "Yes or No?",
+        prompt: "The answer is…",
+        defaults: ["Yes", "No", "Maybe", "Definitely", "Absolutely not", "Ask again later"]
+      },
+      {
+        id: "travel",
+        emoji: "✈️",
+        label: "Where should I go?",
+        prompt: "Pack your bags for…",
+        defaults: ["Beach 🏖", "Mountains 🏔", "City break 🏙", "Countryside 🌾", "Road trip 🚗", "Staycation 🏠"]
+      },
+      {
+        id: "workout",
+        emoji: "💪",
+        label: "What workout today?",
+        prompt: "Today's workout is…",
+        defaults: ["Run", "Yoga", "HIIT", "Strength", "Cycling", "Swim", "Stretch", "Rest day"]
+      },
+      {
+        id: "custom",
+        emoji: "✨",
+        label: "Custom",
+        prompt: "The winner is…",
+        defaults: ["Option 1", "Option 2", "Option 3"]
+      }
+    ];
+
+    // ------------ State ------------
+    const STORAGE_KEY = "dws.state.v2";
+    let state = loadState() || initialState();
+    let rotation = 0;
+    let spinning = false;
+
+    function initialState() {
+      const cats = {};
+      CATEGORIES.forEach(c => {
+        cats[c.id] = { options: [...c.defaults], history: [] };
+      });
+      return { activeCategory: CATEGORIES[0].id, categories: cats };
+    }
+
+    function loadState() {
+      try {
+        const s = JSON.parse(localStorage.getItem(STORAGE_KEY));
+        if (!s || !s.categories) return null;
+        // Ensure every defined category exists (handle adding new categories later)
+        CATEGORIES.forEach(c => {
+          if (!s.categories[c.id]) s.categories[c.id] = { options: [...c.defaults], history: [] };
+        });
+        return s;
+      } catch { return null; }
+    }
+    function saveState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+
+    function activeCat() { return state.categories[state.activeCategory]; }
+    function activeCatMeta() { return CATEGORIES.find(c => c.id === state.activeCategory); }
+
+    // ------------ DOM refs ------------
+    const tabsEl = document.getElementById("tabs");
+    const categoryTitle = document.getElementById("categoryTitle");
+    const canvas = document.getElementById("wheel");
+    const ctx = canvas.getContext("2d");
+    const optionInput = document.getElementById("optionInput");
+    const addBtn = document.getElementById("addBtn");
+    const optionsList = document.getElementById("optionsList");
+    const spinBtn = document.getElementById("spinBtn");
+    const shuffleBtn = document.getElementById("shuffleBtn");
+    const resetBtn = document.getElementById("resetBtn");
+    const clearBtn = document.getElementById("clearBtn");
+    const historyList = document.getElementById("historyList");
+    const modal = document.getElementById("modal");
+    const winnerText = document.getElementById("winnerText");
+    const modalLabel = document.getElementById("modalLabel");
+    const closeModal = document.getElementById("closeModal");
+    const confettiLayer = document.getElementById("confetti");
+
+    // ------------ Tabs ------------
+    function renderTabs() {
+      tabsEl.innerHTML = "";
+      CATEGORIES.forEach(c => {
+        const btn = document.createElement("button");
+        btn.className = "tab" + (c.id === state.activeCategory ? " active" : "");
+        btn.textContent = `${c.emoji} ${c.label}`;
+        btn.addEventListener("click", () => {
+          if (spinning) return;
+          state.activeCategory = c.id;
+          rotation = 0;
+          saveState();
+          renderAll();
+        });
+        tabsEl.appendChild(btn);
+      });
+    }
+
+    function renderCategoryTitle() {
+      const meta = activeCatMeta();
+      categoryTitle.innerHTML = `<span class="emoji">${meta.emoji}</span>${meta.label}`;
+    }
+
+    // ------------ Wheel rendering ------------
+    function drawWheel() {
+      const size = canvas.width;
+      const cx = size / 2, cy = size / 2;
+      const radius = size / 2 - 8;
+      ctx.clearRect(0, 0, size, size);
+
+      const opts = activeCat().options;
+      const n = opts.length;
+      if (n === 0) {
+        ctx.fillStyle = "rgba(255,255,255,0.05)";
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#b8b8d1";
+        ctx.font = "bold 22px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("Add options →", cx, cy);
+        return;
+      }
+
+      const slice = (Math.PI * 2) / n;
+      for (let i = 0; i < n; i++) {
+        const start = rotation + i * slice;
+        const end = start + slice;
+
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.arc(cx, cy, radius, start, end);
+        ctx.closePath();
+        ctx.fillStyle = COLORS[i % COLORS.length];
+        ctx.fill();
+
+        ctx.strokeStyle = "rgba(0,0,0,0.25)";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Label
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(start + slice / 2);
+        ctx.textAlign = "right";
+        ctx.fillStyle = "#fff";
+        ctx.font = "bold 18px sans-serif";
+        ctx.shadowColor = "rgba(0,0,0,0.4)";
+        ctx.shadowBlur = 4;
+        ctx.fillText(truncate(opts[i], 18), radius - 16, 6);
+        ctx.restore();
+      }
+
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(255,255,255,0.3)";
+      ctx.lineWidth = 4;
+      ctx.stroke();
+    }
+
+    function truncate(s, n) { return s.length > n ? s.slice(0, n - 1) + "…" : s; }
+
+    // ------------ Spin animation ------------
+    function spin() {
+      if (spinning) return;
+      const opts = activeCat().options;
+      if (opts.length < 2) return;
+      spinning = true;
+      spinBtn.disabled = true;
+
+      const n = opts.length;
+      const slice = (Math.PI * 2) / n;
+      const winnerIndex = Math.floor(Math.random() * n);
+
+      // Pointer at top → angle = -PI/2 in canvas space.
+      // Want: rotation + winnerIndex*slice + slice/2 ≡ -PI/2 (mod 2π)
+      const targetAngle = -Math.PI / 2 - winnerIndex * slice - slice / 2;
+
+      const fullTurns = 5 + Math.floor(Math.random() * 3);
+      const startRotation = rotation % (Math.PI * 2);
+      const endRotation = startRotation + fullTurns * Math.PI * 2 +
+        ((targetAngle - startRotation) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
+
+      const duration = 4500;
+      const t0 = performance.now();
+
+      function frame(t) {
+        const p = Math.min((t - t0) / duration, 1);
+        const eased = 1 - Math.pow(1 - p, 4);
+        rotation = startRotation + (endRotation - startRotation) * eased;
+        drawWheel();
+        if (p < 1) {
+          requestAnimationFrame(frame);
+        } else {
+          rotation = endRotation;
+          drawWheel();
+          finishSpin(opts[winnerIndex]);
+        }
+      }
+      requestAnimationFrame(frame);
+    }
+
+    function finishSpin(winner) {
+      spinning = false;
+      spinBtn.disabled = false;
+
+      const cat = activeCat();
+      cat.history.unshift({ winner, at: Date.now() });
+      cat.history = cat.history.slice(0, 20);
+      saveState();
+      renderHistory();
+
+      modalLabel.textContent = activeCatMeta().prompt;
+      winnerText.textContent = winner;
+      modal.classList.add("show");
+      launchConfetti();
+    }
+
+    // ------------ Confetti ------------
+    function launchConfetti() {
+      const count = 80;
+      for (let i = 0; i < count; i++) {
+        const piece = document.createElement("div");
+        const size = 6 + Math.random() * 8;
+        piece.style.cssText = `
+          position: absolute; top: -20px;
+          left: ${Math.random() * 100}%;
+          width: ${size}px; height: ${size * 0.4}px;
+          background: ${COLORS[Math.floor(Math.random() * COLORS.length)]};
+          transform: rotate(${Math.random() * 360}deg);
+          border-radius: 2px;
+          opacity: ${0.7 + Math.random() * 0.3};
+        `;
+        confettiLayer.appendChild(piece);
+
+        const fallDuration = 2000 + Math.random() * 2000;
+        const drift = (Math.random() - 0.5) * 300;
+        const spinAmt = (Math.random() - 0.5) * 720;
+
+        piece.animate(
+          [
+            { transform: `translate(0,0) rotate(0deg)`, opacity: 1 },
+            { transform: `translate(${drift}px, ${window.innerHeight + 40}px) rotate(${spinAmt}deg)`, opacity: 0.2 }
+          ],
+          { duration: fallDuration, easing: "cubic-bezier(0.2, 0.6, 0.4, 1)", fill: "forwards" }
+        );
+        setTimeout(() => piece.remove(), fallDuration);
+      }
+    }
+
+    // ------------ Options UI ------------
+    function renderOptions() {
+      const opts = activeCat().options;
+      optionsList.innerHTML = "";
+      opts.forEach((opt, i) => {
+        const li = document.createElement("li");
+        li.innerHTML = `
+          <span class="swatch" style="background:${COLORS[i % COLORS.length]}"></span>
+          <span class="opt-label"></span>
+          <button class="remove" aria-label="Remove">×</button>
+        `;
+        li.querySelector(".opt-label").textContent = opt;
+        li.querySelector(".remove").addEventListener("click", () => {
+          opts.splice(i, 1);
+          saveState();
+          renderAll();
+        });
+        optionsList.appendChild(li);
+      });
+    }
+
+    function renderHistory() {
+      const hist = activeCat().history;
+      historyList.innerHTML = "";
+      if (hist.length === 0) {
+        historyList.innerHTML = '<li class="history-empty">No spins yet — give it a whirl!</li>';
+        return;
+      }
+      hist.forEach(h => {
+        const li = document.createElement("li");
+        const time = new Date(h.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        const w = document.createElement("span");
+        w.className = "winner";
+        w.textContent = h.winner;
+        const t = document.createElement("span");
+        t.className = "meta";
+        t.textContent = time;
+        li.appendChild(w);
+        li.appendChild(t);
+        historyList.appendChild(li);
+      });
+    }
+
+    function renderAll() {
+      renderTabs();
+      renderCategoryTitle();
+      drawWheel();
+      renderOptions();
+      renderHistory();
+    }
+
+    // ------------ Event wiring ------------
+    function addOption() {
+      const v = optionInput.value.trim();
+      if (!v) return;
+      const opts = activeCat().options;
+      if (opts.length >= 20) {
+        alert("Max 20 options per category — keep it focused!");
+        return;
+      }
+      opts.push(v);
+      optionInput.value = "";
+      saveState();
+      renderAll();
+    }
+
+    addBtn.addEventListener("click", addOption);
+    optionInput.addEventListener("keydown", e => { if (e.key === "Enter") addOption(); });
+
+    spinBtn.addEventListener("click", spin);
+    canvas.addEventListener("click", spin);
+
+    shuffleBtn.addEventListener("click", () => {
+      const opts = activeCat().options;
+      for (let i = opts.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [opts[i], opts[j]] = [opts[j], opts[i]];
+      }
+      saveState();
+      renderAll();
+    });
+
+    resetBtn.addEventListener("click", () => {
+      const meta = activeCatMeta();
+      if (confirm(`Reset "${meta.label}" to default options?`)) {
+        activeCat().options = [...meta.defaults];
+        saveState();
+        renderAll();
+      }
+    });
+
+    clearBtn.addEventListener("click", () => {
+      const opts = activeCat().options;
+      if (opts.length === 0) return;
+      if (confirm("Clear all options in this category?")) {
+        activeCat().options = [];
+        saveState();
+        renderAll();
+      }
+    });
+
+    closeModal.addEventListener("click", () => modal.classList.remove("show"));
+    modal.addEventListener("click", e => { if (e.target === modal) modal.classList.remove("show"); });
+
+    // Initial render
+    renderAll();
+  </script>
+</body>
+</html>
